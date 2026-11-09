@@ -15,21 +15,22 @@ RUN curl -fsSL https://github.com/zhlynn/zsign/archive/refs/tags/v1.1.2.tar.gz |
 WORKDIR /app
 
 # The official signing script, fetched at build time.
-# Принудительно отключаем валидацию сертификатов в ssl, urllib и http.client
+# Патчим только исходящие SSL-запросы (Anisette), не затрагивая серверные сокеты:
 RUN curl -fsSL -o sideinstaller.py \
     https://raw.githubusercontent.com/FrizzleM/SideInstaller/main/ish/sideinstaller.py \
     && python3 -c '\
 p = "sideinstaller.py"\n\
 s = open(p).read()\n\
-patch = """import ssl, urllib.request, http.client\n\
+patch = """import ssl\n\
 ssl._create_default_https_context = ssl._create_unverified_context\n\
-_unverified = ssl._create_unverified_context()\n\
-_orig_https = http.client.HTTPSConnection.__init__\n\
-def _patched_https_init(self, *args, **kwargs):\n\
-    if "context" not in kwargs or kwargs["context"] is None:\n\
-        kwargs["context"] = _unverified\n\
-    _orig_https(self, *args, **kwargs)\n\
-http.client.HTTPSConnection.__init__ = _patched_https_init\n\
+_orig_cdc = ssl.create_default_context\n\
+def _cdc(purpose=ssl.Purpose.SERVER_AUTH, *args, **kwargs):\n\
+    ctx = _orig_cdc(purpose, *args, **kwargs)\n\
+    if purpose == ssl.Purpose.SERVER_AUTH:\n\
+        ctx.check_hostname = False\n\
+        ctx.verify_mode = ssl.CERT_NONE\n\
+    return ctx\n\
+ssl.create_default_context = _cdc\n\
 """\n\
 open(p, "w").write(patch + s)\n\
 '
