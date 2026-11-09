@@ -230,8 +230,12 @@ def start_session(loop, bot, chat_id, udid):
     if os.path.exists(OUT_IPA):
         os.remove(OUT_IPA)
     env = dict(os.environ)
-    env.update({"SIDEINSTALLER_HOME": os.path.join(DATA_DIR, "si"),
-                "TERM": "xterm", "PYTHONUNBUFFERED": "1"})
+    env.update({
+        "SIDEINSTALLER_HOME": os.path.join(DATA_DIR, "si"),
+        "TERM": "xterm",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONHTTPSVERIFY": "0",
+    })
     child = pexpect.spawn(
         sys.executable,
         [SCRIPT, "--no-serve", "--udid", udid, "--out", OUT_IPA,
