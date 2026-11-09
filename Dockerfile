@@ -14,11 +14,25 @@ RUN curl -fsSL https://github.com/zhlynn/zsign/archive/refs/tags/v1.1.2.tar.gz |
 
 WORKDIR /app
 
-# The official signing script, fetched at build time from the official repository.
-# Патчим скрипт на игнорирование проверки сертификатов Anisette-серверов в python
+# The official signing script, fetched at build time.
+# Принудительно отключаем валидацию сертификатов в ssl, urllib и http.client
 RUN curl -fsSL -o sideinstaller.py \
     https://raw.githubusercontent.com/FrizzleM/SideInstaller/main/ish/sideinstaller.py \
-    && sed -i '1s/^/import ssl; ssl._create_default_https_context = ssl._create_unverified_context\n/' sideinstaller.py
+    && python3 -c '\
+p = "sideinstaller.py"\n\
+s = open(p).read()\n\
+patch = """import ssl, urllib.request, http.client\n\
+ssl._create_default_https_context = ssl._create_unverified_context\n\
+_unverified = ssl._create_unverified_context()\n\
+_orig_https = http.client.HTTPSConnection.__init__\n\
+def _patched_https_init(self, *args, **kwargs):\n\
+    if "context" not in kwargs or kwargs["context"] is None:\n\
+        kwargs["context"] = _unverified\n\
+    _orig_https(self, *args, **kwargs)\n\
+http.client.HTTPSConnection.__init__ = _patched_https_init\n\
+"""\n\
+open(p, "w").write(patch + s)\n\
+'
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
